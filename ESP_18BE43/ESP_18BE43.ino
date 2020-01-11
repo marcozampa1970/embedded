@@ -1,9 +1,3 @@
-
-// 1, 'ESP_18BE43', 'Room 1', 'thing_dht22/temperature_sensor/room1');
-// 2, 'ESP_18BE43', 'Room 1', 'thing_dht22/humidity_sensor/room1');
-// 3, 'ESP_4F19C4', 'Room 2', 'thing_dht22/temperature_sensor/room2');
-// 4, 'ESP_4F19C4', 'Room 2', 'thing_dht22/humidity_sensor/room2');
-
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
 #include <ESP8266WebServer.h>
@@ -19,17 +13,11 @@
 
 // ********************************
 // ESP_18BE43
+// ********************************
 const int TEMPERATURE_SENSOR_ID = 1;
 const int HUMIDITY_SENSOR_ID = 2;
 const int VOLTAGE_SENSOR_ID = 5;
-// ESP_4F19C4
-//const int TEMPERATURE_SENSOR_ID = 3;
-//const int HUMIDITY_SENSOR_ID = 4;
-//const int VOLTAGE_SENSOR_ID = -1;
-// ********************************
 
-//const char *ssid = "AndroidAP";
-//const char *password = "rdmo6545";
 const char *ssid = "ZM1";
 const char *password = "42147718";
 
@@ -37,7 +25,7 @@ const String HOST = "zetaemmesoft.com";
 const int PORT = 443;
 
 const int ITERATION_DELAY = 2000; // ms
-const int ITERATION_NUMBER = 15;
+const int ITERATION_NUMBER = 12;
 
 const unsigned int SLEEP_TIME = 300e6; // 5 min
 const short CONNECTION_TRY = 5;
@@ -74,13 +62,18 @@ void setup() {
 void loop() {
 
   int voltage = analogRead(A0);
-  Serial.println("Battery: " + voltage);
+  Serial.println("read: " + String(voltage));
 
-  // R1 = 46380 ohm - R2 = 9905 ohm --> K = 5.682
+  // http://www.pcbooster.altervista.org/?artid=232
+  // VIN = 6
+  // VOUT = 0.9
+  // VOUT / VIN = R2 / (R1 + R2) = 0.15 = K
+  // R1 = 46380 ohm - R2 = 9905 ohm --> K = 0.175
+  // 1 / K = 5.682
   // diodo 0.43 V
 
-  float vin = 5.68 * (voltage / 1024.0) + 0.43;
-  Serial.println("Battery: " + String(vin, 2));
+  float vin = 5.682 * (voltage / 1024.0) + 0.43;
+  Serial.println("vin: " + String(vin, 2));
 
   if (WiFi.status() != WL_CONNECTED) {
 
