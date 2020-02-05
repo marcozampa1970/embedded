@@ -129,16 +129,16 @@ void loop() {
       if (isTokenValid) {
         if (msgQueue == 1) {
           if (!dhtError) {
-            httpsClient.print(makeSensorMessage(HUMIDITY_SENSOR_ID, humidity));
+            httpsClient.print(makeSensorMessage(HUMIDITY_SENSOR_ID, humidity, "Humidity"));
           }
           msgQueue = 2;
         } else if (msgQueue == 2) {
           if (!dhtError) {
-            httpsClient.print(makeSensorMessage(TEMPERATURE_SENSOR_ID, temperature));
+            httpsClient.print(makeSensorMessage(TEMPERATURE_SENSOR_ID, temperature, "Temperature"));
           }
           msgQueue = 3;
         } else if (msgQueue == 3 && VOLTAGE_SENSOR_ID > 0) {
-          httpsClient.print(makeSensorMessage(VOLTAGE_SENSOR_ID, vin));
+          httpsClient.print(makeSensorMessage(VOLTAGE_SENSOR_ID, vin, "Voltage"));
           msgQueue = 1;
         }
       } else  {
@@ -219,10 +219,10 @@ String makeOAuthMessage() {
   return message;
 }
 
-// ********
-String makeSensorMessage(int id, float value) {
+// ********  
+String makeSensorMessage(int id, float value, String type) {
 
-  String payload = "{\"id\":" + String(id) + ",\"value\":" + String(value, 2) + "}";
+  String payload = "{\"id\":" + String(id) + ",\"value\":" + String(value, 2) + ",\"type\":\"" + type + "\"}";
   unsigned int payloadLength = payload.length();
 
   String message = String("POST ") + "/monitor/rest/sensor/set" + " HTTP/1.1\r\n" +
