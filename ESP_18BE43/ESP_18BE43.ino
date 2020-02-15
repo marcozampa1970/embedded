@@ -8,8 +8,8 @@
 #define DHTPIN 12 // GPIO12 = D6 nodemcu
 #define DHTTYPE DHT22
 #define LED_BUILD_IN 2
-#define LED_YELLOW 14
-#define LED_RED 13
+//#define LED_YELLOW 14
+//#define LED_RED 13
 
 // ********************************
 // ESP_18BE43
@@ -25,14 +25,16 @@ const String HOST = "zetaemmesoft.com";
 const int PORT = 443;
 
 const int ITERATION_DELAY = 2000; // ms
-const int ITERATION_NUMBER = 12;
+const int MAX_ITERATION_NUMBER = 15;
+const int MAX_SENT_MESSAGES = 9;
 
 const unsigned int SLEEP_TIME = 300e6; // 5 min
 const short CONNECTION_TRY = 5;
 
 const char fingerprint[] PROGMEM = "25 E2 E5 DB 02 BD BF AE A5 25 C7 5B 76 79 1D 5A FB FB BA 99";
 
-int iterationIndex = 0;
+int sentMessagesIndex = 0;
+int iterationNumberIndex = 0;
 String token = "";
 bool dhtError = false;
 bool isTokenValid = false;
@@ -42,11 +44,11 @@ DHT dht(DHTPIN, DHTTYPE);
 
 void setup() {
 
-  pinMode(LED_YELLOW, OUTPUT);
-  digitalWrite(LED_YELLOW, LOW);
+//  pinMode(LED_YELLOW, OUTPUT);
+//  digitalWrite(LED_YELLOW, LOW);
 
-  pinMode(LED_RED, OUTPUT);
-  digitalWrite(LED_RED, LOW);
+//  pinMode(LED_RED, OUTPUT);
+//  digitalWrite(LED_RED, LOW);
 
   pinMode(LED_BUILD_IN, OUTPUT);
   digitalWrite(LED_BUILD_IN, HIGH);
@@ -65,21 +67,21 @@ void loop() {
   Serial.println("read: " + String(voltage));
 
   // http://www.pcbooster.altervista.org/?artid=232
-  // VIN = 6
-  // VOUT = 0.9
-  // VOUT / VIN = R2 / (R1 + R2) = 0.15 = K
-  // R1 = 46380 ohm - R2 = 9905 ohm --> K = 0.175
-  // 1 / K = 5.682
-  // diodo 0.43 V
-
-  float vin = 5.682 * (voltage / 1024.0) + 0.43;
+  // VIN(max) = 6
+  // VOUT(max) = 1 (In-->ADC)
+  // VOUT / VIN = R2 / (R1 + R2) = 1/6 = K
+  // R1 = 470 kohm 
+  // R2 = 96 kohm = 47 kohm + 47 kohm
+  // VIN = 6 * VOUT
+  
+  float vin = 6.0 * (voltage / 1024.0);
   Serial.println("vin: " + String(vin, 2));
 
   if (WiFi.status() != WL_CONNECTED) {
 
     Serial.println("WIFI not connected!");
 
-    digitalWrite(LED_YELLOW, HIGH);
+//    digitalWrite(LED_YELLOW, HIGH);
 
     WiFi.begin(ssid, password);
 
@@ -89,7 +91,7 @@ void loop() {
       r++;
     }
 
-    digitalWrite(LED_YELLOW, LOW);
+//    digitalWrite(LED_YELLOW, LOW);
   }
 
   if (WiFi.status() == WL_CONNECTED) {
@@ -100,11 +102,11 @@ void loop() {
     httpsClient.setFingerprint(fingerprint);
     httpsClient.setTimeout(10000);
 
-    digitalWrite(LED_RED, HIGH);
+//    digitalWrite(LED_RED, HIGH);
 
     if (httpsClient.connect(HOST, PORT)) {
 
-      digitalWrite(LED_RED, LOW);
+//      digitalWrite(LED_RED, LOW);
 
       Serial.println("HTTPS connected!");
 
@@ -130,15 +132,18 @@ void loop() {
         if (msgQueue == 1) {
           if (!dhtError) {
             httpsClient.print(makeSensorMessage(HUMIDITY_SENSOR_ID, humidity, "Humidity"));
+            sentMessagesIndex++;
           }
           msgQueue = 2;
         } else if (msgQueue == 2) {
           if (!dhtError) {
             httpsClient.print(makeSensorMessage(TEMPERATURE_SENSOR_ID, temperature, "Temperature"));
+            sentMessagesIndex++;            
           }
           msgQueue = 3;
-        } else if (msgQueue == 3 && VOLTAGE_SENSOR_ID > 0) {
+        } else if (msgQueue == 3) {
           httpsClient.print(makeSensorMessage(VOLTAGE_SENSOR_ID, vin, "Voltage"));
+          sentMessagesIndex++;          
           msgQueue = 1;
         }
       } else  {
@@ -184,12 +189,10 @@ void loop() {
           token = accessToken;
         }
       }
-    }
-  }
+    } // http
+  } // wifi
 
-  iterationIndex = iterationIndex + 1;
-
-  if (iterationIndex == ITERATION_NUMBER) {
+  if (iterationNumberIndex++ >= MAX_ITERATION_NUMBER || sentMessagesIndex >= MAX_SENT_MESSAGES) {
     Serial.println("SLEEP!");
     ESP.deepSleep(SLEEP_TIME);
   }
