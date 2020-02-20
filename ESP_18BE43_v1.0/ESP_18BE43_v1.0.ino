@@ -9,6 +9,8 @@
 #define DHTTYPE DHT22
 #define LED_BUILD_IN 2
 
+const boolean DEBUG = true;
+
 // ********************************
 // ESP_18BE43
 // ********************************
@@ -22,25 +24,27 @@ const char *password = "42147718";
 const String HOST = "zetaemmesoft.com";
 const int PORT = 443;
 
-const int ITERATION_DELAY = 2000; // ms
+const int ITERATION_DELAY = 2000; // (ms) --> non modificare!!
 const int MAX_ITERATION_NUMBER = 10;
-const int MAX_SENT_MESSAGES = 1 + (3 * 2); // token + 3 sensori
+const int MAX_SENSOR_SENT = 2;
 
 const unsigned int SLEEP_TIME = 300e6; // 5 min
-const short CONNECTION_TRY = 5;
+
+const short WIFI_CONNECTION_TRY = 5;
+const int WIFI_CONNECTION_TRY_DELAY = 500;
+const int HTTP_TIMEOUT = 10000;
 
 const char fingerprint[] PROGMEM = "25 E2 E5 DB 02 BD BF AE A5 25 C7 5B 76 79 1D 5A FB FB BA 99";
-bool isOauthTokenValid = false;
 String oauthToken = "";
 
-int sentMessagesIndex = 0;
+String httpResponse;
+
+int sentHIndex = 0;
+int sentTIndex = 0;
+int sentVIndex = 0;
 int iterationNumberIndex = 0;
 
-bool dhtError = false;
-int msgQueue = 1;
-String headerLine;
-String bodyLine;
-String jsonResponse;
+bool sensorError = false;
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -60,129 +64,114 @@ void setup() {
 void loop() {
 
   int voltage = analogRead(A0);
-  Serial.println("read: " + String(voltage));
 
-  // http://www.pcbooster.altervista.org/?artid=232
+  if (DEBUG) {
+    Serial.println("read: " + String(voltage));
+  }
+
   // VIN(max) = 6
   // VOUT(max) = 1 (In-->ADC)
-  // VOUT / VIN = R2 / (R1 + R2) = 1/6 = K
-  // R1 = 470 kohm
-  // R2 = 96 kohm = 47 kohm + 47 kohm
+  // VOUT / VIN = R2/(R1+R2) = 1/6
+  // R2/(R1+R2)=1/6
+  // (6*R2)/(R1+R2)=1
+  // 6*R2=R1+R2
+  // 5*R2=R1
+  // 5*94K=470K
+  // R1 = 470K
+  // R2 = 94K = (circa) 47K+47K
   // VIN = 6 * VOUT
 
   float vin = 6.0 * (voltage / 1024.0);
-  Serial.println("vin: " + String(vin, 2));
+
+  if (DEBUG) {
+    Serial.println("vin: " + String(vin, 2));
+  }
 
   if (WiFi.status() != WL_CONNECTED) {
 
-    Serial.println("WIFI not connected!");
+    if (DEBUG) {
+      Serial.println("WIFI not connected!");
+    }
 
     WiFi.begin(ssid, password);
 
     int r = 0;
-    while (WiFi.status() != WL_CONNECTED && r <= CONNECTION_TRY) {
-      delay(500);
+    while (WiFi.status() != WL_CONNECTED && r <=  WIFI_CONNECTION_TRY) {
+      delay(WIFI_CONNECTION_TRY_DELAY);
       r++;
     }
   }
 
   if (WiFi.status() == WL_CONNECTED) {
 
-    Serial.println("WIFI connected!");
+    if (DEBUG) {
+      Serial.println("WIFI connected!");
+    }
 
     WiFiClientSecure httpsClient;
     httpsClient.setFingerprint(fingerprint);
-    httpsClient.setTimeout(10000);
+    httpsClient.setTimeout(HTTP_TIMEOUT);
 
     if (httpsClient.connect(HOST, PORT)) {
 
-      Serial.println("HTTPS connected!");
+      if (DEBUG) {
+        Serial.println("HTTPS connected!");
+      }
 
-      // *** sensori
+      // *****************
+      // *** sensori begin
 
       float humidity = dht.readHumidity();
       float temperature = dht.readTemperature();
 
       if (isnan(humidity) || isnan(temperature)) {
-        dhtError = true;
-        Serial.println("DHT22 error!");
+        sensorError = true;
+        if (DEBUG) {
+          Serial.println("Sensor error!");
+        }
       } else {
-        dhtError = false;
-        Serial.println("DHT22 read ok!");
+        sensorError = false;
         float hic = dht.computeHeatIndex(temperature, humidity, false);
       }
 
-      // *********
+      // *** sensori end
+      // ***************
 
-      digitalWrite(LED_BUILD_IN, LOW);
+      if (sensorError == false) {
 
-      if (isOauthTokenValid) {
-        if (msgQueue == 1) {
-          if (!dhtError) {
+        digitalWrite(LED_BUILD_IN, LOW);
+
+        if (!oauthToken.equals("")) {
+
+          if (sentHIndex++ < MAX_SENSOR_SENT) {
             httpsClient.print(makeSensorMessage(HUMIDITY_SENSOR_ID, humidity, "Humidity", oauthToken));
-            sentMessagesIndex++;
+            httpResponse = manageHttpResponse(httpsClient);
           }
-          msgQueue = 2;
-        } else if (msgQueue == 2) {
-          if (!dhtError) {
+          else if (sentTIndex++ < MAX_SENSOR_SENT) {
             httpsClient.print(makeSensorMessage(TEMPERATURE_SENSOR_ID, temperature, "Temperature", oauthToken));
-            sentMessagesIndex++;
+            httpResponse = manageHttpResponse(httpsClient);
           }
-          msgQueue = 3;
-        } else if (msgQueue == 3) {
-          httpsClient.print(makeSensorMessage(VOLTAGE_SENSOR_ID, vin, "Voltage", oauthToken));
-          sentMessagesIndex++;
-          msgQueue = 1;
-        }
-      } else  {
-        httpsClient.print(makeOAuthMessage());
-        sentMessagesIndex++;
-      }
+          else if (sentVIndex++ < MAX_SENSOR_SENT) {
+            httpsClient.print(makeSensorMessage(VOLTAGE_SENSOR_ID, vin, "Voltage", oauthToken));
+            httpResponse = manageHttpResponse(httpsClient);
+          }
 
-      digitalWrite(LED_BUILD_IN, HIGH);
-
-      // http response header
-      while (httpsClient.connected()) {
-        headerLine = httpsClient.readStringUntil('\n');
-        if (headerLine == "\r") {
-          break;
-        }
-      }
-
-      // http response body
-      while (httpsClient.available()) {
-        bodyLine = httpsClient.readStringUntil('\n');
-        if (bodyLine.startsWith("{")) {
-          jsonResponse = bodyLine;
-        }
-      }
-
-      StaticJsonDocument<600> doc;
-      DeserializationError jsonError = deserializeJson(doc, jsonResponse);
-
-      if (jsonError) {
-        Serial.println("JSON error!");
-        Serial.println(jsonError.c_str());
-      } else {
-        Serial.println("JSON ok!");
-
-        String responseError = doc["error"];
-        String accessToken = doc["access_token"];
-
-        if (responseError.equals(String("invalid_token"))) {
-          isOauthTokenValid = false;
+        } else  {
+          httpsClient.print(makeOAuthMessage());
+          httpResponse = manageHttpResponse(httpsClient);
+          oauthToken = manageOauthJsonResponse(httpResponse);
         }
 
-        if (accessToken.length() == 345) {
-          isOauthTokenValid = true;
-          oauthToken = accessToken;
-        }
-      }
-    } // http
-  } // wifi
+        digitalWrite(LED_BUILD_IN, HIGH);
 
-  if (iterationNumberIndex++ >= MAX_ITERATION_NUMBER || sentMessagesIndex >= MAX_SENT_MESSAGES) {
-    Serial.println("SLEEP!");
+      } // sensor ok
+    } // http connected
+  } // wifi connected
+
+  if (iterationNumberIndex++ >= MAX_ITERATION_NUMBER || (sentHIndex >= MAX_SENSOR_SENT && sentTIndex >= MAX_SENSOR_SENT && sentVIndex >= MAX_SENSOR_SENT)) {
+    if (DEBUG) {
+      Serial.println("SLEEP!");
+    }
     ESP.deepSleep(SLEEP_TIME);
   }
 
@@ -229,4 +218,69 @@ String makeSensorMessage(int id, float value, String type, String token) {
                    payload + "\r\n";
 
   return message;
+}
+
+String manageOauthJsonResponse(String response) {
+
+  String token;
+
+  StaticJsonDocument<600> doc;
+  DeserializationError jsonError = deserializeJson(doc, response);
+
+  if (jsonError) {
+    if (DEBUG) {
+      Serial.println("JSON error!");
+      Serial.println(jsonError.c_str());
+    }
+  } else {
+    String responseError = doc["error"];
+    String accessToken = doc["access_token"];
+
+    if (responseError.equals(String("invalid_token"))) {
+      token = "";
+    }
+
+    if (accessToken.length() == 345) {
+      token = accessToken;
+    }
+  }
+
+  return token;
+}
+
+String manageHttpResponse(WiFiClientSecure httpsClient) {
+
+  String headerLine;
+  String bodyLine;
+  String response;
+
+  // http response header
+  while (httpsClient.connected()) {
+
+    headerLine = httpsClient.readStringUntil('\n');
+
+    if (DEBUG) {
+      Serial.println(headerLine);
+    }
+
+    if (headerLine == "\r") {
+      break;
+    }
+  }
+
+  // http response body
+  while (httpsClient.available()) {
+
+    bodyLine = httpsClient.readStringUntil('\n');
+
+    if (DEBUG) {
+      Serial.println(bodyLine);
+    }
+
+    if (bodyLine.startsWith("{")) {
+      response = bodyLine;
+    }
+  }
+
+  return response;
 }
