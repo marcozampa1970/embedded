@@ -9,7 +9,7 @@
 #define DHTTYPE DHT22
 #define LED_BUILD_IN 2
 
-const boolean DEBUG = true;
+const boolean DEBUG = false;
 
 // ********************************
 // ESP_18BE43
