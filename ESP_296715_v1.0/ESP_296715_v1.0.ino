@@ -44,7 +44,6 @@ String oauthToken = "";
 
 String httpResponse;
 
-int sentHIndex = 0;
 int sentTIndex = 0;
 int sentVIndex = 0;
 int iterationNumberIndex = 0;
@@ -72,17 +71,17 @@ void loop() {
     Serial.println("read: " + String(voltage));
   }
 
-  // VIN(max) = 6
-  // VOUT(max) = 1 (In-->ADC)
-  // VOUT / VIN = R2/(R1+R2) = 1/6
+  // VIN(max)=6
+  // VOUT(max)=1 (In-->ADC)
+  // VOUT/VIN=R2/(R1+R2)=1/6
   // R2/(R1+R2)=1/6
   // (6*R2)/(R1+R2)=1
   // 6*R2=R1+R2
   // 5*R2=R1
   // 5*94K=470K
-  // R1 = 470K
-  // R2 = 94K = (circa) 47K+47K
-  // VIN = 6 * VOUT
+  // R1=470K
+  // R2=94K=47K+47K
+  // VIN=6*VOUT
 
   float vin = 6.0 * (voltage / 1024.0);
 
@@ -166,7 +165,7 @@ void loop() {
     } // http connected
   } // wifi connected
 
-  if (iterationNumberIndex++ >= MAX_ITERATION_NUMBER || (sentHIndex >= MAX_SENSOR_SENT && sentTIndex >= MAX_SENSOR_SENT && sentVIndex >= MAX_SENSOR_SENT)) {
+  if (iterationNumberIndex++ >= MAX_ITERATION_NUMBER || (sentTIndex >= MAX_SENSOR_SENT && sentVIndex >= MAX_SENSOR_SENT)) {
     if (DEBUG) {
       Serial.println("SLEEP!");
     }
