@@ -9,6 +9,7 @@
 #define DHTTYPE DHT22
 #define LED_BUILD_IN 2
 
+//const boolean DEBUG = true;
 const boolean DEBUG = false;
 
 // ********************************
@@ -21,8 +22,9 @@ const int VOLTAGE_SENSOR_ID = 5;
 const char *ssid = "ZM1";
 const char *password = "42147718";
 
-const String HOST = "zetaemmesoft.com";
+const String HOST = "192.168.1.101";
 const int PORT = 443;
+const char fingerprint[] PROGMEM = "25 E2 E5 DB 02 BD BF AE A5 25 C7 5B 76 79 1D 5A FB FB BA 99";
 
 const int ITERATION_DELAY = 2000; // (ms) --> non modificare!!
 const int MAX_ITERATION_NUMBER = 10;
@@ -34,7 +36,6 @@ const short WIFI_CONNECTION_TRY = 5;
 const int WIFI_CONNECTION_TRY_DELAY = 500;
 const int HTTP_TIMEOUT = 10000;
 
-const char fingerprint[] PROGMEM = "25 E2 E5 DB 02 BD BF AE A5 25 C7 5B 76 79 1D 5A FB FB BA 99";
 String oauthToken = "";
 
 String httpResponse;

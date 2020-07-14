@@ -9,32 +9,33 @@
 #define DHTTYPE DHT22
 #define LED_BUILD_IN 2
 
+//const boolean DEBUG = true;
 const boolean DEBUG = false;
 
 // ********************************
-// ESP_18BB1E
+// ESP_18BE43
 // ********************************
-const int TEMPERATURE_SENSOR_ID = 21;
-const int HUMIDITY_SENSOR_ID = 22;
-const int VOLTAGE_SENSOR_ID = 23;
+const int TEMPERATURE_SENSOR_ID = 1;
+const int HUMIDITY_SENSOR_ID = 2;
+const int VOLTAGE_SENSOR_ID = 5;
 
 const char *ssid = "ZM1";
 const char *password = "42147718";
 
-const String HOST = "zetaemmesoft.com";
+const String HOST = "192.168.1.101";
 const int PORT = 443;
+const char fingerprint[] PROGMEM = "25 E2 E5 DB 02 BD BF AE A5 25 C7 5B 76 79 1D 5A FB FB BA 99";
 
-const int ITERATION_DELAY = 2000; // (ms) --> non modificare!!
-const int MAX_ITERATION_NUMBER = 10;
-const int MAX_SENSOR_SENT = 2;
+const int ITERATION_DELAY = 2000; // (ms) --> do not modify!!
+const int MAX_ITERATION_NUMBER = 9;  // from 0 to 9 --> 10 iteration
+const int MAX_SENSOR_SENT = 1;
 
 const unsigned int SLEEP_TIME = 600e6; // 10 min
 
-const short WIFI_CONNECTION_TRY = 5;
+const short WIFI_CONNECTION_TRY = 10;
 const int WIFI_CONNECTION_TRY_DELAY = 500;
 const int HTTP_TIMEOUT = 10000;
 
-const char fingerprint[] PROGMEM = "25 E2 E5 DB 02 BD BF AE A5 25 C7 5B 76 79 1D 5A FB FB BA 99";
 String oauthToken = "";
 
 String httpResponse;
@@ -95,10 +96,13 @@ void loop() {
 
     WiFi.begin(ssid, password);
 
-    int r = 0;
-    while (WiFi.status() != WL_CONNECTED && r <=  WIFI_CONNECTION_TRY) {
+    int rx = 0;
+    while (WiFi.status() != WL_CONNECTED && rx++ <  WIFI_CONNECTION_TRY) {
       delay(WIFI_CONNECTION_TRY_DELAY);
-      r++;
+    }
+
+    if (rx >= WIFI_CONNECTION_TRY) {
+      iterationNumberIndex = MAX_ITERATION_NUMBER;
     }
   }
 
@@ -142,7 +146,6 @@ void loop() {
         digitalWrite(LED_BUILD_IN, LOW);
 
         if (!oauthToken.equals("")) {
-
           if (sentHIndex++ < MAX_SENSOR_SENT) {
             httpsClient.print(makeSensorMessage(HUMIDITY_SENSOR_ID, humidity, "Humidity", oauthToken));
             httpResponse = manageHttpResponse(httpsClient);
@@ -155,7 +158,6 @@ void loop() {
             httpsClient.print(makeSensorMessage(VOLTAGE_SENSOR_ID, vin, "Voltage", oauthToken));
             httpResponse = manageHttpResponse(httpsClient);
           }
-
         } else  {
           httpsClient.print(makeOAuthMessage());
           httpResponse = manageHttpResponse(httpsClient);
@@ -163,10 +165,13 @@ void loop() {
         }
 
         digitalWrite(LED_BUILD_IN, HIGH);
-
-      } // sensor ok
-    } // http connected
-  } // wifi connected
+      }
+    } else {
+      if (DEBUG) {
+        Serial.println("HTTPS not connected!");
+      }
+    }
+  }
 
   if (iterationNumberIndex++ >= MAX_ITERATION_NUMBER || (sentHIndex >= MAX_SENSOR_SENT && sentTIndex >= MAX_SENSOR_SENT && sentVIndex >= MAX_SENSOR_SENT)) {
     if (DEBUG) {
