@@ -5,16 +5,16 @@
 
 /*
 Connect the CSB pin to GND to have SPI and to VCC(3V3) for I2C.
-The 7-bit device address is 111011x. The 6 MSB bits are fixed. The last bit is changeable by SDO
-value and can be changed during operation.
-Connecting SDO to GND results in slave address 1110110 (0x76), connecting it to VCC results in
-slave address 1110111 (0x77), which is the same as BMP180’s I²C address.
+
+The 7-bit device address is 111011x. The 6 MSB bits are fixed. The last bit is changeable by SDO value and can be changed during operation.
+Connecting SDO to GND results in slave address 1110110 (0x76), connecting it to VCC results in slave address 1110111 (0x77), which is the same as BMP180’s I²C address.
 */
 
 
 Adafruit_BMP280 bmp; // I2C
 
-// Address 1110111
+// address LM75    1001000 
+// address BMP280  1110111  
 
 void setup() {
   Serial.begin(115200);

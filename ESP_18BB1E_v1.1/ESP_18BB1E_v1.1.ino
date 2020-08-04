@@ -13,11 +13,11 @@
 const boolean DEBUG = false;
 
 // ********************************
-// ESP_18BE43
+// ESP_18BB1E
 // ********************************
-const int TEMPERATURE_SENSOR_ID = 10;
-const int HUMIDITY_SENSOR_ID = 11;
-const int VOLTAGE_SENSOR_ID = 12;
+const int TEMPERATURE_SENSOR_ID = 1;
+const int HUMIDITY_SENSOR_ID = 2;
+const int VOLTAGE_SENSOR_ID = 5;
 
 const char *ssid = "ZM1";
 const char *password = "42147718";
@@ -54,8 +54,6 @@ DHT dht(DHTPIN, DHTTYPE);
 
 void setup() {
 
-  Serial.println("setup - BEGIN");
-
   pinMode(LED_BUILD_IN, OUTPUT);
   digitalWrite(LED_BUILD_IN, HIGH);
 
@@ -65,8 +63,6 @@ void setup() {
   WiFi.mode(WIFI_STA);
 
   dht.begin();
-
-  Serial.println("setup - END");
 }
 
 void loop() {
@@ -86,7 +82,7 @@ void loop() {
   // 5*R2=R1
   // 5*94K=470K
   // R1 = 470K
-  // R2 = 94K = 47K+47K
+  // R2 = 94K = (circa) 47K+47K
   // VIN = 6 * VOUT
 
   float vin = 6.0 * (voltage / 1024.0);

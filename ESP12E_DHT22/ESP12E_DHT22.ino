@@ -9,46 +9,49 @@
 #define DHTTYPE DHT22
 #define LED_BUILD_IN 2
 
+//const boolean DEBUG = true;
 const boolean DEBUG = false;
 
-// ********************************
-// ESP_18BB1E
-// ********************************
-const int TEMPERATURE_SENSOR_ID = 21;
-const int HUMIDITY_SENSOR_ID = 22;
-const int VOLTAGE_SENSOR_ID = 23;
+const int TEMPERATURE_SENSOR_ID = 10;
+const int HUMIDITY_SENSOR_ID = 11;
+const int VOLTAGE_SENSOR_ID = 12;
 
 const char *ssid = "ZM1";
 const char *password = "42147718";
 
-const String HOST = "zetaemmesoft.com";
+const String HOST = "192.168.1.101";
 const int PORT = 443;
+const char fingerprint[] PROGMEM = "25 E2 E5 DB 02 BD BF AE A5 25 C7 5B 76 79 1D 5A FB FB BA 99";
 
-const int ITERATION_DELAY = 2000; // (ms) --> non modificare!!
-const int MAX_ITERATION_NUMBER = 10;
-const int MAX_SENSOR_SENT = 2;
+const int ITERATION_DELAY = 2000; // (ms) --> do not modify!!
+const int MAX_ITERATION_NUMBER = 9;  // from 0 to 9 --> 10 iteration
+const int MAX_SENSOR_SENT = 1;
 
 const unsigned int SLEEP_TIME = 600e6; // 10 min
 
-const short WIFI_CONNECTION_TRY = 5;
-const int WIFI_CONNECTION_TRY_DELAY = 500;
+const int WIFI_CONNECTION_WAIT = 10;
+const int WIFI_CONNECTION_DELAY = 500;
+const int WIFI_CONNECTION_FAIL = 2;
 const int HTTP_TIMEOUT = 10000;
+const int HTTP_CONNECTION_FAIL = 2;
 
-const char fingerprint[] PROGMEM = "25 E2 E5 DB 02 BD BF AE A5 25 C7 5B 76 79 1D 5A FB FB BA 99";
 String oauthToken = "";
-
 String httpResponse;
 
 int sentHIndex = 0;
 int sentTIndex = 0;
 int sentVIndex = 0;
-int iterationNumberIndex = 0;
+int iterationIndex = 0;
 
-bool sensorError = false;
+int sensorErrorX = 0;
+int wifiConnectionFail = 0;
+int httpConnectionFail = 0;
 
 DHT dht(DHTPIN, DHTTYPE);
 
 void setup() {
+
+  Serial.println("setup - BEGIN");
 
   pinMode(LED_BUILD_IN, OUTPUT);
   digitalWrite(LED_BUILD_IN, HIGH);
@@ -59,6 +62,8 @@ void setup() {
   WiFi.mode(WIFI_STA);
 
   dht.begin();
+
+  Serial.println("setup - END");
 }
 
 void loop() {
@@ -78,7 +83,7 @@ void loop() {
   // 5*R2=R1
   // 5*94K=470K
   // R1 = 470K
-  // R2 = 94K = (circa) 47K+47K
+  // R2 = 94K = 47K+47K
   // VIN = 6 * VOUT
 
   float vin = 6.0 * (voltage / 1024.0);
@@ -95,14 +100,23 @@ void loop() {
 
     WiFi.begin(ssid, password);
 
-    int r = 0;
-    while (WiFi.status() != WL_CONNECTED && r <=  WIFI_CONNECTION_TRY) {
-      delay(WIFI_CONNECTION_TRY_DELAY);
-      r++;
+    int rx = 0;
+    while (WiFi.status() != WL_CONNECTED && rx++ <  WIFI_CONNECTION_WAIT) {
+      delay(WIFI_CONNECTION_DELAY);
+    }
+
+    if (WiFi.status() != WL_CONNECTED && rx >= WIFI_CONNECTION_WAIT) {
+      wifiConnectionFail++;
+
+      if (DEBUG) {
+        Serial.println("wifiConnectionFail: " + String(wifiConnectionFail));
+      }
     }
   }
 
   if (WiFi.status() == WL_CONNECTED) {
+
+    wifiConnectionFail = 0;
 
     if (DEBUG) {
       Serial.println("WIFI connected!");
@@ -125,24 +139,23 @@ void loop() {
       float temperature = dht.readTemperature();
 
       if (isnan(humidity) || isnan(temperature)) {
-        sensorError = true;
+        sensorErrorX = 1;
         if (DEBUG) {
           Serial.println("Sensor error!");
         }
       } else {
-        sensorError = false;
+        sensorErrorX = 0;
         float hic = dht.computeHeatIndex(temperature, humidity, false);
       }
 
       // *** sensori end
       // ***************
 
-      if (sensorError == false) {
+      if (sensorErrorX == 0) {
 
         digitalWrite(LED_BUILD_IN, LOW);
 
         if (!oauthToken.equals("")) {
-
           if (sentHIndex++ < MAX_SENSOR_SENT) {
             httpsClient.print(makeSensorMessage(HUMIDITY_SENSOR_ID, humidity, "Humidity", oauthToken));
             httpResponse = manageHttpResponse(httpsClient);
@@ -155,7 +168,6 @@ void loop() {
             httpsClient.print(makeSensorMessage(VOLTAGE_SENSOR_ID, vin, "Voltage", oauthToken));
             httpResponse = manageHttpResponse(httpsClient);
           }
-
         } else  {
           httpsClient.print(makeOAuthMessage());
           httpResponse = manageHttpResponse(httpsClient);
@@ -163,12 +175,25 @@ void loop() {
         }
 
         digitalWrite(LED_BUILD_IN, HIGH);
+      }
+    } else {
+      if (DEBUG) {
+        Serial.println("HTTPS not connected!");
+      }
 
-      } // sensor ok
-    } // http connected
-  } // wifi connected
+      httpConnectionFail++;
 
-  if (iterationNumberIndex++ >= MAX_ITERATION_NUMBER || (sentHIndex >= MAX_SENSOR_SENT && sentTIndex >= MAX_SENSOR_SENT && sentVIndex >= MAX_SENSOR_SENT)) {
+      if (DEBUG) {
+        Serial.println("httpConnectionFail: " + String(httpConnectionFail));
+      }
+    }
+  }
+
+  if (DEBUG) {
+    Serial.println("iterationIndex: " + String(iterationIndex));
+  }
+
+  if (iterationIndex++ >= MAX_ITERATION_NUMBER || (sentHIndex >= MAX_SENSOR_SENT && sentTIndex >= MAX_SENSOR_SENT && sentVIndex >= MAX_SENSOR_SENT) || wifiConnectionFail >= WIFI_CONNECTION_FAIL || httpConnectionFail >= HTTP_CONNECTION_FAIL) {
     if (DEBUG) {
       Serial.println("SLEEP!");
     }
